@@ -335,6 +335,7 @@
 
         let touchStartX = null;
         let touchStartY = null;
+        const refreshThreshold = window.innerHeight * 0.1; // 화면 높이의 10% 이내에서 시작하면 새로고침 방지
         
         gameCanvas.addEventListener('touchstart', (event) => {
           touchStartX = event.touches[0].clientX;
@@ -355,28 +356,28 @@
           const absDeltaX = Math.abs(deltaX);
           const absDeltaY = Math.abs(deltaY);
         
-          if (Math.max(absDeltaX, absDeltaY) > 50) { // 스와이프 감지 민감도 조절
-            if (absDeltaX > absDeltaY) {
-              // 좌우 스와이프
-              if (deltaX > 0 && direction !== 'left') {
-                direction = 'right';
-              } else if (deltaX < 0 && direction !== 'right') {
-                direction = 'left';
-              }
-            } else {
-              // 상하 스와이프
-              if (deltaY > 0 && direction !== 'up') {
-                direction = 'down';
-              } else if (deltaY < 0 && direction !== 'down') {
-                direction = 'up';
+          // 최상단 영역에서의 아래 스와이프가 아니면 방향 변경 처리
+          if (!(touchStartY < refreshThreshold && deltaY > 50 && absDeltaX < absDeltaY * 0.6)) {
+            if (Math.max(absDeltaX, absDeltaY) > 50) {
+              if (absDeltaX > absDeltaY) {
+                if (deltaX > 0 && direction !== 'left') {
+                  direction = 'right';
+                } else if (deltaX < 0 && direction !== 'right') {
+                  direction = 'left';
+                }
+              } else {
+                if (deltaY > 0 && direction !== 'up') {
+                  direction = 'down';
+                } else if (deltaY < 0 && direction !== 'down') {
+                  direction = 'up';
+                }
               }
             }
           }
         
           touchStartX = null;
           touchStartY = null;
-        });        
-
+        });
 
 
 
