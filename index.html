@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>단어 먹는 뱀 게임</title>
+    <style>
+        body { margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background-color: #f0f0f0; }
+        #gameContainer { text-align: center; }
+        #inputContainer { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 5px; }
+        input[type="text"] { width: 300px; padding: 8px; margin-bottom: 10px; box-sizing: border-box; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
+        #gameCanvas { background-color: #333; }
+        #score { margin-top: 10px; font-size: 18px; }
+        .popup {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background-color: white; padding: 20px; border: 1px solid #ccc; box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+            text-align: center; z-index: 10;
+        }
+        .popup button { margin-top: 10px; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="inputContainer">
+            <label for="goodWords">닿았을 때 점수를 얻는 단어 (쉼표로 구분):</label>
+            <input type="text" id="goodWords" placeholder="예: 사과, 바나나, 포도">
+            <label for="badWords">닿았을 때 점수를 잃는 단어 (쉼표로 구분):</label>
+            <input type="text" id="badWords" placeholder="예: 독, 뱀, 벌">
+            <button id="startButton">게임 시작</button>
+        </div>
+        <canvas id="gameCanvas"></canvas>
+        <div id="score" class="hidden">점수: 0</div>
+        <div id="gameOverPopup" class="popup hidden">
+            <h2>게임 오버!</h2>
+            <button id="restartButton">처음으로</button>
+        </div>
+        <div id="winPopup" class="popup hidden">
+            <h2>축하합니다! 승리!</h2>
+            <audio id="clapSound" src="https://upload.wikimedia.org/wikipedia/commons/6/6d/277021_sandermotions_applause-2.wav"></audio>
+            <button id="restartButtonWin">처음으로</button>
+        </div>
+    </div>
+
+    <script>
+        const inputContainer = document.getElementById('inputContainer');
+        const startButton = document.getElementById('startButton');
+        const gameCanvas = document.getElementById('gameCanvas');
+        const scoreDisplay = document.getElementById('score');
+        const gameOverPopup = document.getElementById('gameOverPopup');
+        const winPopup = document.getElementById('winPopup');
+        const restartButton = document.getElementById('restartButton');
+        const restartButtonWin = document.getElementById('restartButtonWin');
+        const clapSound = document.getElementById('clapSound');
+        const ctx = gameCanvas.getContext('2d');
+
+        let goodWords = [];
+        let badWords = [];
+        let snake = [{ x: 100, y: 100 }];
+        let direction = null;
+        let food = [];
+        let score = 0;
+        let gridSize = 20;
+        let gameInterval;
+        let wordInterval;
+        let canvasWidth;
+        let canvasHeight;
+        const wordDisplayTime = 10000; // 10초
+        let gameSpeed = 200;
+        let maxFoodCount = 3;
+
+        function resizeCanvas() {
+            canvasWidth = window.innerWidth * 0.8;
+            canvasHeight = window.innerHeight * 0.8;
+            gameCanvas.width = canvasWidth;
+            gameCanvas.height = canvasHeight;
+        }
+
+        function getRandomPosition() {
+            return {
+                x: Math.floor(Math.random() * (canvasWidth / gridSize)) * gridSize,
+                y: Math.floor(Math.random() * (canvasHeight / gridSize)) * gridSize
+            };
+        }
+
+        function generateFood() {
+            const currentFoodCount = food.length;
+            let targetFoodCount = maxFoodCount;
+
+            if (score >= 5) targetFoodCount = Math.max(targetFoodCount, 4);
+            if (score >= 10) targetFoodCount = Math.max(targetFoodCount, 5);
+            if (score >= 15) targetFoodCount = Math.max(targetFoodCount, 6);
+
+            while (food.length < targetFoodCount) {
+                const randomWordType = Math.random() < 0.7 ? 'good' : 'bad';
+                let wordList = randomWordType === 'good' ? goodWords : badWords;
+                if (wordList.length > 0) {
+                    const randomIndex = Math.floor(Math.random() * wordList.length);
+                    const position = getRandomPosition();
+                    let overlapping = snake.some(segment => segment.x === position.x && segment.y === position.y);
+                    food.forEach(item => {
+                        if (item.x === position.x && item.y === position.y) {
+                            overlapping = true;
+                        }
+                    });
+
+                    if (!overlapping) {
+                        food.push({ word: wordList[randomIndex], x: position.x, y: position.y, type: randomWordType, timestamp: Date.now() });
+                    }
+                } else {
+                    break; // 단어 목록이 비어있으면 더 이상 생성하지 않음
+                }
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+            // 뱀 그리기
+            snake.forEach((segment, index) => {
+                ctx.fillStyle = index === 0 ? 'green' : 'lime';
+                ctx.fillRect(segment.x, segment.y, gridSize, gridSize);
+                ctx.strokeStyle = 'black';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(segment.x, segment.y, gridSize, gridSize);
+            });
+
+            // 단어 그리기
+            ctx.font = '14px Arial';
+            ctx.textAlign = 'center';
+            food.forEach(item => {
+                const textWidth = ctx.measureText(item.word).width;
+                const textHeight = 14; // 대략적인 높이
+                item.width = textWidth;
+                item.height = textHeight;
+                ctx.fillStyle = item.type === 'good' ? 'blue' : 'red';
+                ctx.fillText(item.word, item.x + gridSize / 2, item.y + gridSize / 2 + 5);
+            });
+
+            scoreDisplay.textContent = `점수: ${score}`;
+        }
+
+        function checkCollision(head, item) {
+            const headLeft = head.x;
+            const headRight = head.x + gridSize;
+            const headTop = head.y;
+            const headBottom = head.y + gridSize;
+
+            const itemLeft = item.x;
+            const itemRight = item.x + item.width;
+            const itemTop = item.y;
+            const itemBottom = item.y + item.height;
+
+            return headLeft < itemRight && headRight > itemLeft && headTop < itemBottom && headBottom > itemTop;
+        }
+
+        function update() {
+            if (!direction) return;
+
+            const head = { ...snake[0] };
+            switch (direction) {
+                case 'up': head.y -= gridSize; break;
+                case 'down': head.y += gridSize; break;
+                case 'left': head.x -= gridSize; break;
+                case 'right': head.x += gridSize; break;
+            }
+
+            snake.unshift(head);
+
+            let ateFood = false;
+            food = food.filter(item => {
+                if (checkCollision(head, item)) {
+                    if (item.type === 'good') {
+                        score++;
+                        ateFood = true;
+                    } else {
+                        score--;
+                    }
+                    return false;
+                }
+                return true;
+            });
+
+            if (!ateFood) {
+                snake.pop();
+            }
+
+            // 꼬리 충돌 검사
+            for (let i = 1; i < snake.length; i++) {
+                if (head.x === snake[i].x && head.y === snake[i].y) {
+                    score--;
+                    break;
+                }
+            }
+
+            // 벽 충돌 검사
+            if (head.x < 0 || head.x >= canvasWidth || head.y < 0 || head.y >= canvasHeight || score < -1) {
+                gameOver();
+                return;
+            }
+
+            if (score >= 20) {
+                winGame();
+                return;
+            }
+
+            // 점수에 따른 속도 변화
+            gameSpeed = 200;
+            if (score >= 5) gameSpeed = 150;
+            if (score >= 10) gameSpeed = 100;
+            if (score >= 15) gameSpeed = 70;
+            clearInterval(gameInterval);
+            gameInterval = setInterval(gameLoop, gameSpeed);
+
+            draw();
+        }
+
+        function removeOldFood() {
+            const now = Date.now();
+            food = food.filter(item => now - item.timestamp < wordDisplayTime);
+        }
+
+        function gameLoop() {
+            update();
+            removeOldFood();
+        }
+
+        function startGame() {
+            goodWords = document.getElementById('goodWords').value.split(',').map(word => word.trim()).filter(word => word !== '');
+            badWords = document.getElementById('badWords').value.split(',').map(word => word.trim()).filter(word => word !== '');
+
+            if (goodWords.length === 0 || badWords.length === 0) {
+                alert('단어를 입력해주세요.');
+                return;
+            }
+
+            inputContainer.classList.add('hidden');
+            gameCanvas.classList.remove('hidden');
+            scoreDisplay.classList.remove('hidden');
+            gameOverPopup.classList.add('hidden');
+            winPopup.classList.add('hidden');
+
+            resizeCanvas();
+            snake = [{ x: Math.floor(canvasWidth / 2 / gridSize) * gridSize, y: Math.floor(canvasHeight / 2 / gridSize) * gridSize }];
+            direction = null;
+            food = [];
+            score = 0;
+            gameSpeed = 200;
+            maxFoodCount = 3;
+            draw();
+
+            clearInterval(gameInterval);
+            clearInterval(wordInterval);
+            gameInterval = setInterval(gameLoop, gameSpeed);
+            wordInterval = setInterval(generateFood, 1500);
+        }
+
+        function gameOver() {
+            clearInterval(gameInterval);
+            clearInterval(wordInterval);
+            gameCanvas.classList.add('hidden');
+            scoreDisplay.classList.add('hidden');
+            gameOverPopup.classList.remove('hidden');
+            direction = null;
+        }
+
+        function winGame() {
+            clearInterval(gameInterval);
+            clearInterval(wordInterval);
+            gameCanvas.classList.add('hidden');
+            scoreDisplay.classList.add('hidden');
+            winPopup.classList.remove('hidden');
+            clapSound.play();
+            direction = null;
+        }
+
+        startButton.addEventListener('click', startGame);
+
+        restartButton.addEventListener('click', () => {
+            inputContainer.classList.remove('hidden');
+            gameCanvas.classList.add('hidden');
+            scoreDisplay.classList.add('hidden');
+            gameOverPopup.classList.add('hidden');
+            goodWords = [];
+            badWords = [];
+            document.getElementById('goodWords').value = '';
+            document.getElementById('badWords').value = '';
+            score = 0;
+        });
+
+        restartButtonWin.addEventListener('click', () => {
+            inputContainer.classList.remove('hidden');
+            gameCanvas.classList.add('hidden');
+            scoreDisplay.classList.add('hidden');
+            winPopup.classList.add('hidden');
+            goodWords = [];
+            badWords = [];
+            document.getElementById('goodWords').value = '';
+            document.getElementById('badWords').value = '';
+            score = 0;
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (!direction) {
+                if (event.key === 'ArrowUp') direction = 'up';
+                else if (event.key === 'ArrowDown') direction = 'down';
+                else if (event.key === 'ArrowLeft') direction = 'left';
+                else if (event.key === 'ArrowRight') direction = 'right';
+            } else if (direction === 'up' || direction === 'down') {
+                if (event.key === 'ArrowLeft') direction = 'left';
+                else if (event.key === 'ArrowRight') direction = 'right';
+            } else if (direction === 'left' || direction === 'right') {
+                if (event.key === 'ArrowUp') direction = 'up';
+                else if (event.key === 'ArrowDown') direction = 'down';
+            }
+        });
+
+        window.addEventListener('resize', resizeCanvas);
+    </script>
+</body>
+</html>
