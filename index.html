@@ -327,6 +327,61 @@
         });
 
         window.addEventListener('resize', resizeCanvas);
+
+
+
+
+        
+
+        let touchStartX = null;
+        let touchStartY = null;
+        
+        gameCanvas.addEventListener('touchstart', (event) => {
+          touchStartX = event.touches[0].clientX;
+          touchStartY = event.touches[0].clientY;
+        });
+        
+        gameCanvas.addEventListener('touchend', (event) => {
+          if (touchStartX === null || touchStartY === null) {
+            return;
+          }
+        
+          const touchEndX = event.changedTouches[0].clientX;
+          const touchEndY = event.changedTouches[0].clientY;
+        
+          const deltaX = touchEndX - touchStartX;
+          const deltaY = touchEndY - touchStartY;
+        
+          const absDeltaX = Math.abs(deltaX);
+          const absDeltaY = Math.abs(deltaY);
+        
+          if (Math.max(absDeltaX, absDeltaY) > 50) { // 스와이프 감지 민감도 조절
+            if (absDeltaX > absDeltaY) {
+              // 좌우 스와이프
+              if (deltaX > 0 && direction !== 'left') {
+                direction = 'right';
+              } else if (deltaX < 0 && direction !== 'right') {
+                direction = 'left';
+              }
+            } else {
+              // 상하 스와이프
+              if (deltaY > 0 && direction !== 'up') {
+                direction = 'down';
+              } else if (deltaY < 0 && direction !== 'down') {
+                direction = 'up';
+              }
+            }
+          }
+        
+          touchStartX = null;
+          touchStartY = null;
+        });        
+
+
+
+
+        
+        
     </script>
 </body>
 </html>
